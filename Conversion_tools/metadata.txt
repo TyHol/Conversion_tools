@@ -1,0 +1,7 @@
+[general]
+name=KMRT_Plugin
+description= Form and searchbar tools: Convert and d stuff with coordinates. Also adds Irish Grid & UK Grid to searchbar.
+author=Tyhol
+icon=icon2.svg
+version=0.4
+homepage=https://github.com/TyHol/Qfield_Convert_Coords.git
