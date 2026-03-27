@@ -988,7 +988,7 @@ Rectangle {
 QfToolButton {
  id: mainPluginButton
  bgcolor: Theme.darkGray
- iconSource: 'plugin_stuff/icon2.svg'
+ iconSource: 'icon2.svg'
  round: true
  onClicked: mainDialog.open()
  onPressAndHold: settingsDialog.open()
