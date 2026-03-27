@@ -1,6 +1,6 @@
 # Conversion Tools — QField Plugin
 
-A plugin for the [QField](https://qfield.org/) mobile GIS app that converts between coordinate systems, creates points, and adds grid-reference search to the QField locator bar.
+A plugin for the [QField](https://qfield.org/) mobile GIS app that converts between coordinate systems, creates points, and adds grid-reference search to the QField locator bar. (This is a refresh and replacement of https://github.com/TyHol/Qfield_Convert_Coords.)
 
 > **Version:** 0.2 | **Author:** Tyhol | **Repository:** https://github.com/TyHol/Conversion_tools
 
@@ -30,7 +30,7 @@ To install the plugin, download the plugin from the releases page and follow the
 
 ## Main Dialog
 
-Open the dialog by tapping the plugin button (triangle icon) in the QField toolbar.
+Open the dialog by tapping the plugin button/icon in the QField toolbar.
 
 [IMAGE: main dialog overview showing all coordinate rows]
 
@@ -112,7 +112,7 @@ Long-pressing on the map canvas in QField opens a context menu. The plugin adds 
 
 ## Paste from Clipboard
 
-The **Paste from clipboard** button (in the main dialog) and the **Paste location from clipboard** item (in the canvas menu) both accept a wide range of coordinate formats from the clipboard.
+The **Paste from clipboard** button (in the main dialog) and the **Paste location from clipboard** item (in the canvas menu) both accept a wide range of coordinate formats from the clipboard.  - Experimental!
 
 ### Accepted formats
 
