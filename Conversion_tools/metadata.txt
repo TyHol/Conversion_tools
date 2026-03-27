@@ -1,6 +1,6 @@
 [general]
-name=Conversion_tools
-description= Form and searchbar and Canvas tools: Convert and create points by coordinates. Also adds Irish Grid & UK Grid to searchbar.
+name=Conversion tools
+description= Form, searchbar and Canvas tools to Convert and create points by coordinates. Also adds Irish & UK Grid to searchbar.
 author=Tyhol
 icon=icon2.svg
 version=0.2
