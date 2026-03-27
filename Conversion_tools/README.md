@@ -112,7 +112,7 @@ Long-pressing on the map canvas in QField opens a context menu. The plugin adds 
 
 ## Paste from Clipboard
 
-The **Paste from clipboard** button (in the main dialog) and the **Paste location from clipboard** item (in the canvas menu) both accept a wide range of coordinate formats from the clipboard.
+The **Paste from clipboard** button (in the main dialog) and the **Paste location from clipboard** item (in the canvas menu) both accept a wide range of coordinate formats from the clipboard.  - Experimental!
 
 ### Accepted formats
 
