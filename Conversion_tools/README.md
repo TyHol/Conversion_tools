@@ -185,8 +185,18 @@ Controls what happens to the map view after a point is added, and whether the at
 |---|---|
 | **don't zoom/pan** | Map view stays where it is |
 | **Pan to** | Map canvas pans to centre on the new point |
-| **Zoom to** | Map canvas zooms to the new point (zoom level set in Format) |
+| **Zoom to** | Map canvas zooms to the new point at the extent set by the zoom preset below |
 | **Show form on add** | When checked, the attribute form opens for every new point; when unchecked, points are added silently (note: hard field constraints are not enforced in silent mode) |
+
+The zoom extent is set by the dropdown at the bottom of this frame:
+
+| Preset | Half-width |
+|---|---|
+| Detail | ~25 m |
+| Building | ~50 m |
+| Town *(default)* | ~2 km |
+| Region | ~20 km |
+| Country | ~200 km |
 
 The canvas menu **Paste location from clipboard** always zooms to the new point regardless of this setting.
 
@@ -222,7 +232,6 @@ Selects which app/service opens when using the **Navigate/Web** long-press or th
 | Setting | Effect |
 |---|---|
 | Font Size | Text size in the main dialog (5–25) |
-| Zoom | Half-width of the zoom extent when using Pan/Zoom long-press (1–10, exponential scale) |
 | Decimals (m) | Decimal places for projected coordinates (e.g. Custom 1/2 in metres) |
 | Decimals (deg) | Decimal places for geographic coordinates (WGS84 lat/lon) |
 

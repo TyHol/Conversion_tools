@@ -26,12 +26,12 @@ Item {
 
 
 //changable stuff 
-property var filetimedate : "27.3.26..15" // version date
+property var filetimedate : "27.3.26..18" // version date
 property var mapsUrlOption: 3 // Default external map: 1=GMaps pin, 2=GMaps nav, 3=OSM, 4=OSRM route
 
 //default values
 property var fsize : "15" // general font size
-property var zoomV : "4" // zoom level 
+property int zoomPresetDefault: 3  // default zoom preset index (0=Detail … 5=Country)
 property var decm : "0"  // decimal places for meter coordinates
 property var decd : "5"  // decimal places for degree coordinates
   
@@ -62,7 +62,7 @@ Settings {
     property string pointLayerName: ""
     property int    mapsUrlOption:  3
     property string fontSize:       "15"
-    property string zoomLevel:      "4"
+    property int    zoomPreset:     2
     property string decimalsM:      "0"
     property string decimalsD:      "5"
     property bool   showIG:         true
@@ -162,7 +162,7 @@ Component.onCompleted: {
     // Restore saved settings into UI
     mapsUrlOption      = appSettings.mapsUrlOption
     font_Size.text     = appSettings.fontSize
-    zoom.text          = appSettings.zoomLevel
+    zoomPresetCombo.currentIndex = appSettings.zoomPreset
     decimalsm.text     = appSettings.decimalsM
     decimalsd.text     = appSettings.decimalsD
     showIG.checked     = appSettings.showIG
@@ -314,10 +314,9 @@ Component.onCompleted: {
         var canvasCrsObj = CoordinateReferenceSystemUtils.fromDescription("EPSG:" + canvasEPSG);
         var transformedPoint = GeometryUtils.reprojectPoint(GeometryUtils.point(pointX, pointY), sourceCrs, canvasCrsObj);
 
-        // Exponential scale: zoom=1 → ~6 m half-width, zoom=10 → ~66 km half-width
-        var offset = Math.exp(parseFloat(zoom.text) * 1.8);
-        if (offset > 1000000) { offset = 1000000; }
-        if (offset < 1) { offset = 1; }
+        // Named presets: Building=50m, Street=500m, Town=2km, Region=20km, Country=200km
+        var presetOffsets = [25, 50, 500, 2000, 20000, 200000]
+        var offset = presetOffsets[appSettings.zoomPreset] || 2000
         if (canvasCrs.isGeographic) { offset = offset / 111000; } // metres → degrees
 
         var xMin = transformedPoint.x - offset;
@@ -2274,9 +2273,19 @@ Column {
                 Layout.fillWidth: true
                 RadioButton { id: afterAddNothing; text: qsTr("don't zoom/pan"); font.pixelSize: 10; ButtonGroup.group: afterAddGroup; checked: appSettings.afterAddAction === 0; onCheckedChanged: if (checked) { appSettings.afterAddAction = 0 } }
                 RadioButton { id: afterAddPan;     text: qsTr("Pan to");     font.pixelSize: 10; ButtonGroup.group: afterAddGroup; checked: appSettings.afterAddAction === 1; onCheckedChanged: if (checked) { appSettings.afterAddAction = 1 } }
-                RadioButton { id: afterAddZoom;    text: qsTr("Zoom to");    font.pixelSize: 10; ButtonGroup.group: afterAddGroup; checked: appSettings.afterAddAction === 2; onCheckedChanged: if (checked) { appSettings.afterAddAction = 2 } }
+                RadioButton { id: afterAddZoom;    text: qsTr("Zoom to:");    font.pixelSize: 10; ButtonGroup.group: afterAddGroup; checked: appSettings.afterAddAction === 2; onCheckedChanged: if (checked) { appSettings.afterAddAction = 2 } }
             }
-            CheckBox { id: showFormOnAdd; text: qsTr("Show form"); font.pixelSize: 10; onCheckedChanged: { formOnAdd = checked; appSettings.showFeatureForm = checked } }
+             ComboBox {
+                id: zoomPresetCombo
+                Layout.fillWidth: true
+                Layout.preferredHeight: 28
+                font.pixelSize: 10
+                model: ["Detail (~25 m)", "Building (~50 m)", "Street (~500 m)", "Town (~2 km)", "Region (~20 km)", "Country (~200 km)"]
+                currentIndex: appSettings.zoomPreset
+                onCurrentIndexChanged: appSettings.zoomPreset = currentIndex
+            }
+            CheckBox { id: showFormOnAdd; text: qsTr("Show form. (NB: hiding may override hard constraints)"); font.pixelSize: 10; onCheckedChanged: { formOnAdd = checked; appSettings.showFeatureForm = checked } }
+           
         }
     }
 
@@ -2327,7 +2336,7 @@ Column {
         GridLayout {
             anchors.left: parent.left
             anchors.right: parent.right
-            columns: 4
+            columns: 2
             columnSpacing: 0
             rowSpacing: 0
             Label { font.pixelSize: 10; font.family: "Arial"; font.italic: true; text: "Font Size:" }
@@ -2337,14 +2346,6 @@ Column {
                 text: fsize; Layout.preferredWidth: 40; Layout.preferredHeight: 20
                 validator: IntValidator { bottom: 5; top: 25 }
                 onTextChanged: appSettings.fontSize = text
-            }
-            Label { font.pixelSize: 10; font.family: "Arial"; font.italic: true; text: "Zoom:" }
-            TextField {
-                id: zoom
-                font.pixelSize: 10; font.family: "Arial"; font.italic: true
-                text: zoomV; Layout.preferredWidth: 40; Layout.preferredHeight: 20
-                validator: IntValidator { bottom: 1; top: 10 }
-                onTextChanged: appSettings.zoomLevel = text
             }
             Label { font.pixelSize: 10; font.family: "Arial"; font.italic: true; text: "Decimals (m):" }
             TextField {
@@ -2377,7 +2378,7 @@ Column {
             font_Size.text      = fsize;    appSettings.fontSize  = fsize
             decimalsm.text      = decm;     appSettings.decimalsM = decm
             decimalsd.text      = decd;     appSettings.decimalsD = decd
-            zoom.text           = zoomV;    appSettings.zoomLevel = zoomV
+            zoomPresetCombo.currentIndex = zoomPresetDefault; appSettings.zoomPreset = zoomPresetDefault
             showIG.checked      = igvis;    showUK.checked        = ukgvis
             showCustom1.checked = custom1vis; showCustom2.checked = custom2vis
             showDegrees.checked = wgs84vis
