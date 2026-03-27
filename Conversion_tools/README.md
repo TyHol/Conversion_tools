@@ -1,6 +1,6 @@
 # Conversion Tools — QField Plugin
 
-A plugin for the [QField](https://qfield.org/) mobile GIS app that converts between coordinate systems, creates points, and adds grid-reference search to the QField locator bar. (A refresh and replacement of https://github.com/TyHol/Qfield_Convert_Coords).
+A plugin for the [QField](https://qfield.org/) mobile GIS app that converts between coordinate systems, creates points, and adds grid-reference search to the QField locator bar. A refresh and replacement of https://github.com/TyHol/Qfield_Convert_Coords.
 
 > **Version:** 0.2 | **Author:** Tyhol | **Repository:** https://github.com/TyHol/Conversion_tools
 
