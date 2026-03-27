@@ -26,7 +26,7 @@ Item {
 
 
 //changable stuff 
-property var filetimedate : "27.3.26..18" // version date
+property var filetimedate : "27.3.26..22" // version date
 property var mapsUrlOption: 3 // Default external map: 1=GMaps pin, 2=GMaps nav, 3=OSM, 4=OSRM route
 
 //default values
@@ -1188,7 +1188,10 @@ TextField {
 
 
 Button {
-    text: "⧉"
+    text: ""
+    icon.source: "plugin_stuff/copy.svg"
+    icon.width: 18
+    icon.height: 18
     id: copyIG  
     font.bold: true
     width: 10
@@ -1296,7 +1299,10 @@ ukInputBox.placeholderText  = "UKG"
  }
 }
 Button {
-    text: "⧉"
+    text: ""
+    icon.source: "plugin_stuff/copy.svg"
+    icon.width: 18
+    icon.height: 18
     id: copyUK  
     //visible: false
     font.bold: true
@@ -1394,7 +1400,10 @@ TextField {
  onTextChanged: crs1ChangeTimer.restart()
  }
  Button {
-    text: "⧉"
+    text: ""
+    icon.source: "plugin_stuff/copy.svg"
+    icon.width: 18
+    icon.height: 18
     id: custom1copy
     font.bold: true
     width: 35
@@ -1493,7 +1502,10 @@ TextField {
   }
 
  Button {
-    text: "⧉"
+    text: ""
+    icon.source: "plugin_stuff/copy.svg"
+    icon.width: 18
+    icon.height: 18
     id: custom2copy
     font.bold: true
     //visible: false
@@ -1600,7 +1612,10 @@ TextField {
  }
 }
  Button {
-    text: "⧉"
+    text: ""
+    icon.source: "plugin_stuff/copy.svg"
+    icon.width: 18
+    icon.height: 18
     id: wgs84copy
     font.bold: true
     //visible: true
@@ -1644,7 +1659,10 @@ TextField {
   
  }}
  Button {
-    text: "⧉"
+    text: ""
+    icon.source: "plugin_stuff/copy.svg"
+    icon.width: 18
+    icon.height: 18
     id: wgsdm84copy
     font.bold: true
     width: 35
@@ -1688,7 +1706,10 @@ TextField {
 
  }}
  Button {
-    text: "⧉"
+    text: ""
+    icon.source: "plugin_stuff/copy.svg"
+    icon.width: 18
+    icon.height: 18
     id: wgsdms84copy
     font.bold: true
     width: 35
@@ -2007,7 +2028,7 @@ onTextChanged: lonSecClampTimer.restart()
 
  // Update Button
  Button {
- text: "↺" // update from this row should get rid of this in future.....
+ text: ""; icon.source: "plugin_stuff/refresh.svg"; icon.width: 22; icon.height: 22
      font.bold: true
     visible: true
     width: 35
@@ -2217,32 +2238,38 @@ Dialog {
     id: settingsDialog
     parent: mainWindow.contentItem
     modal: true
-    title: qsTr("Settings")
-    width: 380
+    header: null
+    width: Math.min(300, mainWindow.width - 16)
+    height: Math.min(implicitHeight, mainWindow.height * 0.80)
     anchors.centerIn: parent
     onOpened: {
         populatePointLayerPicker()
         showFormOnAdd.checked = formOnAdd
     }
 
+ScrollView {
+    anchors.fill: parent
+    clip: true
+    contentWidth: availableWidth
+
 Column {
     width: parent.width
-    spacing: 4
+    spacing: 2
+    topPadding: 6; bottomPadding: 6
 
-    // --- Add points to (top) ---
-    Label { text: qsTr("    Add new points to:"); font.pixelSize: 12; font.family: "Arial"; font.italic: true }
+    // shared header style: bold, 10px, small gap beneath
+    Label { text: qsTr("Add new points to:"); font.pixelSize: 10; font.bold: true }
+    Item  { width: 1; height: 2 }
     ComboBox {
         id: pointLayerCombo
         width: parent.width
-        font.pixelSize: 12
+        implicitHeight: 32
+        font.pixelSize: 10
         model: pointLayerPickerModel
         textRole: "name"
         onActivated: {
             var item = pointLayerPickerModel.get(currentIndex)
-            if (item.isHeader) {
-                currentIndex = currentIndex > 0 ? currentIndex - 1 : 0
-                return
-            }
+            if (item.isHeader) { currentIndex = currentIndex > 0 ? currentIndex - 1 : 0; return }
             appSettings.pointLayerName = (currentIndex === 0) ? "" : item.name
         }
         delegate: ItemDelegate {
@@ -2250,7 +2277,7 @@ Column {
             enabled: !model.isHeader
             contentItem: Text {
                 text: model.name
-                font.pixelSize: 12
+                font.pixelSize: 10
                 font.italic: model.isHeader
                 color: model.isHeader ? "#888888" : (highlighted ? "#ffffff" : "#000000")
                 verticalAlignment: Text.AlignVCenter
@@ -2260,124 +2287,99 @@ Column {
         }
     }
 
-    // --- After adding point ---
+    Rectangle { width: parent.width; height: 1; color: "#cccccc" }
+    Item { width: 1; height: 3 }
     ButtonGroup { id: afterAddGroup }
-    GroupBox {
-        title: qsTr("After adding point")
+    Label { text: qsTr("After adding point"); font.pixelSize: 10; font.bold: true }
+    Item  { width: 1; height: 2 }
+    RowLayout {
         width: parent.width
-        ColumnLayout {
-            anchors.left: parent.left
-            anchors.right: parent.right
-            spacing: 0
-            RowLayout {
-                Layout.fillWidth: true
-                RadioButton { id: afterAddNothing; text: qsTr("don't zoom/pan"); font.pixelSize: 10; ButtonGroup.group: afterAddGroup; checked: appSettings.afterAddAction === 0; onCheckedChanged: if (checked) { appSettings.afterAddAction = 0 } }
-                RadioButton { id: afterAddPan;     text: qsTr("Pan to");     font.pixelSize: 10; ButtonGroup.group: afterAddGroup; checked: appSettings.afterAddAction === 1; onCheckedChanged: if (checked) { appSettings.afterAddAction = 1 } }
-                RadioButton { id: afterAddZoom;    text: qsTr("Zoom to:");    font.pixelSize: 10; ButtonGroup.group: afterAddGroup; checked: appSettings.afterAddAction === 2; onCheckedChanged: if (checked) { appSettings.afterAddAction = 2 } }
-            }
-             ComboBox {
-                id: zoomPresetCombo
-                Layout.fillWidth: true
-                Layout.preferredHeight: 28
-                font.pixelSize: 10
-                model: ["Detail (~25 m)", "Building (~50 m)", "Street (~500 m)", "Town (~2 km)", "Region (~20 km)", "Country (~200 km)"]
-                currentIndex: appSettings.zoomPreset
-                onCurrentIndexChanged: appSettings.zoomPreset = currentIndex
-            }
-            CheckBox { id: showFormOnAdd; text: qsTr("Show form. (NB: hiding may override hard constraints)"); font.pixelSize: 10; onCheckedChanged: { formOnAdd = checked; appSettings.showFeatureForm = checked } }
-           
-        }
+        RadioButton { id: afterAddNothing; text: qsTr("No Zoom/Pan"); font.pixelSize: 9; implicitHeight: 28; ButtonGroup.group: afterAddGroup; checked: appSettings.afterAddAction === 0; onCheckedChanged: if (checked) appSettings.afterAddAction = 0 }
+        RadioButton { id: afterAddPan;     text: qsTr("Pan to");  font.pixelSize: 9; implicitHeight: 28; ButtonGroup.group: afterAddGroup; checked: appSettings.afterAddAction === 1; onCheckedChanged: if (checked) appSettings.afterAddAction = 1 }
+        RadioButton { id: afterAddZoom;    text: qsTr("Zoom to:"); font.pixelSize: 9; implicitHeight: 28; ButtonGroup.group: afterAddGroup; checked: appSettings.afterAddAction === 2; onCheckedChanged: if (checked) appSettings.afterAddAction = 2 }
+    }
+    ComboBox {
+        id: zoomPresetCombo
+        width: parent.width; implicitHeight: 26
+        font.pixelSize: 9
+        model: ["Detail (~25 m)", "Building (~50 m)", "Street (~500 m)", "Town (~2 km)", "Region (~20 km)", "Country (~200 km)"]
+        currentIndex: appSettings.zoomPreset
+        onCurrentIndexChanged: appSettings.zoomPreset = currentIndex
+    }
+    CheckBox { id: showFormOnAdd; text: qsTr("Show form (NB hiding may override hard restraints)"); font.pixelSize: 9; implicitHeight: 26; onCheckedChanged: { formOnAdd = checked; appSettings.showFeatureForm = checked } }
+
+    Rectangle { width: parent.width; height: 1; color: "#cccccc" }
+    Item { width: 1; height: 3 }
+    Label { text: qsTr("Display"); font.pixelSize: 10; font.bold: true }
+    Item  { width: 1; height: 2 }
+    GridLayout {
+        width: parent.width
+        columns: 3; columnSpacing: 0; rowSpacing: 0
+        CheckBox { id: showIG;        text: "Irish Grid"; font.pixelSize: 9; implicitHeight: 26; checked: true;  onCheckedChanged: { igridrow.visible = checked;        appSettings.showIG = checked } }
+        CheckBox { id: showDegrees;   text: "Degrees";    font.pixelSize: 9; implicitHeight: 26; checked: false; onCheckedChanged: { wgsdegreesrow.visible = checked;   appSettings.showDegrees = checked } }
+        CheckBox { id: showDMS;       text: "D M S.ss";   font.pixelSize: 9; implicitHeight: 26; checked: false; onCheckedChanged: { dmsrow.visible = checked;          appSettings.showDMS = checked } }
+        CheckBox { id: showUK;        text: "UK Grid";    font.pixelSize: 9; implicitHeight: 26; checked: false; onCheckedChanged: { ukgridrow.visible = checked;       appSettings.showUK = checked } }
+        CheckBox { id: showDM;        text: "D M.mm";     font.pixelSize: 9; implicitHeight: 26; checked: true;  onCheckedChanged: { dmrow.visible = checked;           appSettings.showDM = checked } }
+        CheckBox { id: showCustom1;   text: "Custom 1";   font.pixelSize: 9; implicitHeight: 26; checked: false; onCheckedChanged: { custom1row.visible = checked;      appSettings.showCustom1 = checked } }
+        CheckBox { id: showCustom2;   text: "Custom 2";   font.pixelSize: 9; implicitHeight: 26; checked: false; onCheckedChanged: { custom2row.visible = checked;      appSettings.showCustom2 = checked } }
+        CheckBox { id: showDMSboxes;  text: "DMS Boxes";  font.pixelSize: 9; implicitHeight: 26; checked: true;  onCheckedChanged: { latlongboxesDMS.visible = checked; appSettings.showDMSboxes = checked } }
+        CheckBox { id: showCrosshair; text: "Crosshair";  font.pixelSize: 9; implicitHeight: 26; checked: true;  onCheckedChanged: { crosshair.visible = checked;       appSettings.showCrosshair = checked } }
     }
 
-    // --- Frame: display checkboxes ---
-    GroupBox {
-        title: qsTr("Display")
-        width: parent.width
-        GridLayout {
-            anchors.left: parent.left
-            anchors.right: parent.right
-            columns: 3
-            columnSpacing: 0
-            rowSpacing: 0
-            CheckBox { id: showIG;       text: "Irish Grid"; font.pixelSize: 10; checked: true;  onCheckedChanged: { igridrow.visible = checked;      appSettings.showIG = checked } }
-            CheckBox { id: showDegrees;  text: "Degrees";    font.pixelSize: 10; checked: false; onCheckedChanged: { wgsdegreesrow.visible = checked;  appSettings.showDegrees = checked } }
-            CheckBox { id: showDMS;      text: "D M S.ss";   font.pixelSize: 10; checked: false; onCheckedChanged: { dmsrow.visible = checked;         appSettings.showDMS = checked } }
-            CheckBox { id: showUK;       text: "UK Grid";    font.pixelSize: 10; checked: false; onCheckedChanged: { ukgridrow.visible = checked;      appSettings.showUK = checked } }
-            CheckBox { id: showDM;       text: "D M.mm";     font.pixelSize: 10; checked: true;  onCheckedChanged: { dmrow.visible = checked;          appSettings.showDM = checked } }
-            CheckBox { id: showCustom1;  text: "Custom 1";   font.pixelSize: 10; checked: false; onCheckedChanged: { custom1row.visible = checked;     appSettings.showCustom1 = checked } }
-            CheckBox { id: showCustom2;  text: "Custom 2";   font.pixelSize: 10; checked: false; onCheckedChanged: { custom2row.visible = checked;     appSettings.showCustom2 = checked } }
-            CheckBox { id: showDMSboxes;  text: "DMS Boxes"; font.pixelSize: 10; checked: true;  onCheckedChanged: { latlongboxesDMS.visible = checked; appSettings.showDMSboxes = checked } }
-            CheckBox { id: showCrosshair; text: "Crosshair"; font.pixelSize: 10; checked: true; onCheckedChanged: { crosshair.visible = checked; appSettings.showCrosshair = checked } }
-        }
-    }
-
-    // --- Frame: external map ---
+    Rectangle { width: parent.width; height: 1; color: "#cccccc" }
+    Item { width: 1; height: 3 }
     ButtonGroup { id: mapsUrlGroup }
-    GroupBox {
-        title: qsTr("External map")
+    Label { text: qsTr("External map"); font.pixelSize: 10; font.bold: true }
+    Item  { width: 1; height: 2 }
+    GridLayout {
         width: parent.width
-        GridLayout {
-            anchors.left: parent.left
-            anchors.right: parent.right
-            columns: 2
-            columnSpacing: 0
-            rowSpacing: 0
-            RadioButton { text: "GMaps pin";  font.pixelSize: 10; ButtonGroup.group: mapsUrlGroup; checked: mapsUrlOption === 1; onCheckedChanged: if (checked) { mapsUrlOption = 1; appSettings.mapsUrlOption = 1 } }
-            RadioButton { text: "GMaps nav";  font.pixelSize: 10; ButtonGroup.group: mapsUrlGroup; checked: mapsUrlOption === 2; onCheckedChanged: if (checked) { mapsUrlOption = 2; appSettings.mapsUrlOption = 2 } }
-            RadioButton { text: "OSM";        font.pixelSize: 10; ButtonGroup.group: mapsUrlGroup; checked: mapsUrlOption === 3; onCheckedChanged: if (checked) { mapsUrlOption = 3; appSettings.mapsUrlOption = 3 } }
-            RadioButton { text: "OSRM route"; font.pixelSize: 10; ButtonGroup.group: mapsUrlGroup; checked: mapsUrlOption === 4; onCheckedChanged: if (checked) { mapsUrlOption = 4; appSettings.mapsUrlOption = 4 } }
+        columns: 2; columnSpacing: 0; rowSpacing: 0
+        RadioButton { text: "GMaps pin";  font.pixelSize: 9; implicitHeight: 26; ButtonGroup.group: mapsUrlGroup; checked: mapsUrlOption === 1; onCheckedChanged: if (checked) { mapsUrlOption = 1; appSettings.mapsUrlOption = 1 } }
+        RadioButton { text: "GMaps nav";  font.pixelSize: 9; implicitHeight: 26; ButtonGroup.group: mapsUrlGroup; checked: mapsUrlOption === 2; onCheckedChanged: if (checked) { mapsUrlOption = 2; appSettings.mapsUrlOption = 2 } }
+        RadioButton { text: "OSM";        font.pixelSize: 9; implicitHeight: 26; ButtonGroup.group: mapsUrlGroup; checked: mapsUrlOption === 3; onCheckedChanged: if (checked) { mapsUrlOption = 3; appSettings.mapsUrlOption = 3 } }
+        RadioButton { text: "OSRM route"; font.pixelSize: 9; implicitHeight: 26; ButtonGroup.group: mapsUrlGroup; checked: mapsUrlOption === 4; onCheckedChanged: if (checked) { mapsUrlOption = 4; appSettings.mapsUrlOption = 4 } }
+    }
+
+    Rectangle { width: parent.width; height: 1; color: "#cccccc" }
+    Item { width: 1; height: 3 }
+    Label { text: qsTr("Format"); font.pixelSize: 10; font.bold: true }
+    Item  { width: 1; height: 2 }
+    GridLayout {
+        width: parent.width
+        columns: 2; columnSpacing: 0; rowSpacing: 0
+        Label { font.pixelSize: 9; text: "Font Size:" }
+        TextField {
+            id: font_Size; font.pixelSize: 9; text: fsize
+            Layout.preferredWidth: 36; Layout.preferredHeight: 22
+            validator: IntValidator { bottom: 5; top: 25 }
+            onTextChanged: appSettings.fontSize = text
+        }
+        Label { font.pixelSize: 9; text: "Decimals (m):" }
+        TextField {
+            id: decimalsm; font.pixelSize: 9; text: decm
+            Layout.preferredWidth: 36; Layout.preferredHeight: 22
+            validator: IntValidator { bottom: 0; top: 10 }
+            onTextChanged: appSettings.decimalsM = text
+        }
+        Label { font.pixelSize: 9; text: "Decimals (deg):" }
+        TextField {
+            id: decimalsd; font.pixelSize: 9; text: decd
+            Layout.preferredWidth: 36; Layout.preferredHeight: 22
+            validator: IntValidator { bottom: 0; top: 10 }
+            onTextChanged: appSettings.decimalsD = text
         }
     }
 
-    // --- Frame: numeric/format settings ---
-    GroupBox {
-        title: qsTr("Format")
-        width: parent.width
-        GridLayout {
-            anchors.left: parent.left
-            anchors.right: parent.right
-            columns: 2
-            columnSpacing: 0
-            rowSpacing: 0
-            Label { font.pixelSize: 10; font.family: "Arial"; font.italic: true; text: "Font Size:" }
-            TextField {
-                id: font_Size
-                font.pixelSize: 10; font.family: "Arial"; font.italic: true
-                text: fsize; Layout.preferredWidth: 40; Layout.preferredHeight: 20
-                validator: IntValidator { bottom: 5; top: 25 }
-                onTextChanged: appSettings.fontSize = text
-            }
-            Label { font.pixelSize: 10; font.family: "Arial"; font.italic: true; text: "Decimals (m):" }
-            TextField {
-                id: decimalsm
-                font.pixelSize: 10; font.family: "Arial"; font.italic: true
-                text: decm; Layout.preferredWidth: 40; Layout.preferredHeight: 20
-                validator: IntValidator { bottom: 0; top: 10 }
-                onTextChanged: appSettings.decimalsM = text
-            }
-            Label { font.pixelSize: 10; font.family: "Arial"; font.italic: true; text: "Decimals (deg):" }
-            TextField {
-                id: decimalsd
-                font.pixelSize: 10; font.family: "Arial"; font.italic: true
-                text: decd; Layout.preferredWidth: 40; Layout.preferredHeight: 20
-                validator: IntValidator { bottom: 0; top: 10 }
-                onTextChanged: appSettings.decimalsD = text
-            }
-        }
-    }
-
-    // --- Reset button (bottom) ---
     Button {
         text: qsTr("Reset")
         width: parent.width
         font.pixelSize: 10
-        implicitHeight: 35
+        implicitHeight: 32
         onClicked: {
-            custom1CRS.text = canvasEPSG
-            custom2CRS.text = "4326"
-            font_Size.text      = fsize;    appSettings.fontSize  = fsize
-            decimalsm.text      = decm;     appSettings.decimalsM = decm
-            decimalsd.text      = decd;     appSettings.decimalsD = decd
+            custom1CRS.text = canvasEPSG;   custom2CRS.text = "4326"
+            font_Size.text  = fsize;        appSettings.fontSize  = fsize
+            decimalsm.text  = decm;         appSettings.decimalsM = decm
+            decimalsd.text  = decd;         appSettings.decimalsD = decd
             zoomPresetCombo.currentIndex = zoomPresetDefault; appSettings.zoomPreset = zoomPresetDefault
             showIG.checked      = igvis;    showUK.checked        = ukgvis
             showCustom1.checked = custom1vis; showCustom2.checked = custom2vis
@@ -2391,16 +2393,14 @@ Column {
         }
     }
 
-    // --- Version ---
     Label {
         text: filetimedate
         width: parent.width
-        font.pixelSize: 9
-        font.family: "Arial"
-        font.italic: true
+        font.pixelSize: 9; font.italic: true
         horizontalAlignment: Text.AlignRight
     }
 } // end of column
+} // end of ScrollView
 } // end of settingsDialog
 Dialog {
     id: bigDialog
