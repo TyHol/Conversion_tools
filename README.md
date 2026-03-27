@@ -2,7 +2,7 @@
 
 A plugin for the [QField](https://qfield.org/) mobile GIS app that converts between coordinate systems, creates points, and adds grid-reference search to the QField locator bar.
 
-> **Version:** 0.1 | **Author:** Tyhol | **Repository:** https://github.com/TyHol/Conversion_tools
+> **Version:** 0.2 | **Author:** Tyhol | **Repository:** https://github.com/TyHol/Conversion_tools
 
 ---
 
@@ -24,7 +24,7 @@ A plugin for the [QField](https://qfield.org/) mobile GIS app that converts betw
 
 ## Installation
 
-Copy the `Conversion_tools` folder into your QField plugins directory, then enable the plugin in QField settings.
+To install the plugin, download the plugin from the releases page and follow the plugin installation guide to install the zipped plugin in QField.
 
 ---
 
@@ -36,7 +36,7 @@ Open the dialog by tapping the plugin button (triangle icon) in the QField toolb
 
 ### Grabbing Coordinates
 
-Three ways to load a position into the dialog:
+Four ways to load a position into the dialog:
 
 | Button | Action |
 |---|---|
@@ -59,7 +59,7 @@ The dialog shows coordinates in multiple formats simultaneously. Each row can be
 | **WGS84 DDM** | Degrees + Decimal Minutes | `53° 20.988', -6° 15.619'` | No (display) |
 | **WGS84 DMS** | Degrees, Minutes, Decimal Seconds | `53° 20' 59.28", -6° 15' 37.11"` | No (display) |
 
-Each row has a **⧉ copy** button that copies the displayed value to the clipboard.
+Each row has a **copy** button (clipboard icon) that copies the displayed value to the clipboard.
 
 By default Custom 1 is set to the project CRS and Custom 2 is set to WGS84 (EPSG:4326). Their EPSG codes can be changed directly in the dialog and reset using the **Reset** button in [Settings](#settings).
 
@@ -67,7 +67,7 @@ By default Custom 1 is set to the project CRS and Custom 2 is set to WGS84 (EPSG
 
 ### DMS Input Boxes
 
-Below the read-only DMS row are six editable boxes for entering Degrees, Minutes and Seconds separately for latitude and longitude. Tap the **↺ update** button to push the DMS values into the main WGS84 box and update all other rows. Long-press the update button to also open the BIG display.
+Below the read-only DMS row are six editable boxes for entering Degrees, Minutes and Seconds separately for latitude and longitude. Tap the **update** button (circular arrow icon) to push the DMS values into the main WGS84 box and update all other rows. Long-press the update button to also open the BIG display.
 
 [IMAGE: DMS input boxes]
 
@@ -88,8 +88,8 @@ Below the read-only DMS row are six editable boxes for entering Degrees, Minutes
 
 Two large-text overlay dialogs for easy reading in the field:
 
-- **BIG (tap):** Shows the current GPS position and the screen centre position, each in Irish Grid / UK Grid and Lat/Long. Tap any value to copy it to the clipboard.
-- **BIG (long press):** Shows all the current values from the main dialog text boxes, also copyable by tap.
+- **BIG (tap):** Shows the current GPS position and the screen centre position, each in Irish Grid / UK Grid and Lat/Long. Tap any coordinate value to copy it to the clipboard.
+- **BIG (long press):** Shows all the current values from the main dialog text boxes. Tap any coordinate value to copy it to the clipboard.
 
 [IMAGE: BIG dialog showing GPS and screen centre]
 
@@ -171,7 +171,7 @@ The result panel shows the grid reference converted to Decimal Degrees and Degre
 
 Open the settings dialog by tapping the **⚙** button in the main dialog header, or by **long-pressing** the plugin toolbar button.
 
-[IMAGE: settings dialog with all three frames visible]
+[IMAGE: settings dialog]
 
 ### Add points to
 
@@ -194,6 +194,7 @@ The zoom extent is set by the dropdown at the bottom of this frame:
 |---|---|
 | Detail | ~25 m |
 | Building | ~50 m |
+| Street | ~500 m |
 | Town *(default)* | ~2 km |
 | Region | ~20 km |
 | Country | ~200 km |
