@@ -1,7 +1,7 @@
 [general]
-name=KMRT_Plugin
-description= Form and searchbar tools: Convert and d stuff with coordinates. Also adds Irish Grid & UK Grid to searchbar.
+name=Conversion_tools
+description= Form and searchbar and Canvas tools: Convert and create points by coordinates. Also adds Irish Grid & UK Grid to searchbar.
 author=Tyhol
 icon=icon2.svg
-version=0.4
-homepage=https://github.com/TyHol/Qfield_Convert_Coords.git
+version=0.1
+homepage=https://github.com/TyHol/Conversion_tools.git

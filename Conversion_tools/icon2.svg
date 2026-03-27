@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<svg
+   width="137.38136mm"
+   height="134.25717mm"
+   viewBox="0 0 137.38136 134.25717"
+   version="1.1"
+   xmlns="http://www.w3.org/2000/svg">
+  <g
+     id="g2"
+     transform="matrix(0.6119555,0,0,0.68854745,-187.53262,-141.47505)">
+    <polygon
+       points="550.9,404.7 290.2,404.7 417.2,191.2"
+       style="fill:#e30613" />
+    <path
+       d="M 556.3,407.7 H 284.9 L 417.2,185.4 Z m -260.9,-6 h 250 L 417.2,197 Z"
+       style="fill:#004082" />
+  </g>
+  <polygon
+     points="417,218.1 527.2,390.7 315.2,390.7"
+     style="fill:#004082"
+     transform="matrix(0.55978191,0,0,0.65852739,-165.73034,-128.15396)" />
+  <polygon
+     points="68.69,60 22,129 114,129"
+     style="fill:#ffffff" />
+</svg>

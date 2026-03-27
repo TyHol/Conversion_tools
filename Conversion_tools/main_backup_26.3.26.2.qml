@@ -1,8 +1,9 @@
-import QtQuick 
-import QtQuick.Controls 
+import QtQuick
+import QtQuick.Controls
 import QtQuick.Layouts
 import org.qfield
 import org.qgis
+import QtCore
 
 import Theme
 
@@ -18,15 +19,15 @@ Item {
  property var positionSource: iface.findItemByObjectName('positionSource')
  property var canvasMenu: iface.findItemByObjectName('canvasMenu')
  property var canvasCrs : canvas.destinationCrs ;
- //property var crsGeo : canvasCrs.isGeographic // is the canvas Geogrpahic (true (deg)) or projected (false (m))
- property var canvasEPSG : parseInt(canvas.project.crs.authid.split(":")[1]); // Canvas CRS
+ property var canvasEPSG : parseInt(canvasCrs.authid.split(":")[1]); // Canvas destination CRS (not project CRS)
  property var mapCanvas: iface.mapCanvas()
 
 
 
 
 //changable stuff 
-property var filetimedate : "25.3.26..1" // version date
+property var filetimedate : "26.3.26..2" // version date
+property var mapsUrlOption: 3 // Default external map: 1=GMaps pin, 2=GMaps nav, 3=OSM, 4=OSRM route
 
 //default values
 property var fsize : "15" // general font size
@@ -51,20 +52,138 @@ property var minwa : "70"  // width of minute input box when no decimals in degr
 
 
 
+Settings {
+    id: appSettings
+    category: "ConversionTools"
+    property string pointLayerName: ""
+    property int    mapsUrlOption:  3
+    property string fontSize:       "15"
+    property string zoomLevel:      "4"
+    property string decimalsM:      "0"
+    property string decimalsD:      "5"
+    property bool   showIG:         true
+    property bool   showUK:         false
+    property bool   showDegrees:    false
+    property bool   showDM:         true
+    property bool   showDMS:        false
+    property bool   showCustom1:    false
+    property bool   showCustom2:    false
+    property bool   showCrosshair:  true
+    property bool   showDMSboxes:   true
+    property bool   showCustomisation: false
+}
+
+ListModel { id: pointLayerPickerModel }
+
+function populatePointLayerPicker() {
+    pointLayerPickerModel.clear()
+
+    var layers = ProjectUtils.mapLayers(qgisProject)
+    var normalLayers = []
+    var privateLayers = []
+
+    // Collect valid editable point layers, split by private flag (value 4)
+    for (var id in layers) {
+        var layer = layers[id]
+        try {
+            if (layer &&
+                layer.geometryType &&
+                layer.geometryType() === Qgis.GeometryType.Point &&
+                layer.supportsEditing === true) {
+
+                var isPrivate = false
+                try { isPrivate = (layer.flags & 8) !== 0 } catch (e2) {}
+
+                if (isPrivate)
+                    privateLayers.push(layer)
+                else
+                    normalLayers.push(layer)
+            }
+        } catch (e) {}
+    }
+
+    // Sort each group alphabetically
+    normalLayers.sort(function(a, b) { return a.name.localeCompare(b.name) })
+    privateLayers.sort(function(a, b) { return a.name.localeCompare(b.name) })
+
+    // If no layers found at all, show a placeholder and bail out
+    if (normalLayers.length === 0 && privateLayers.length === 0) {
+        pointLayerPickerModel.append({ "name": qsTr("— no editable point layers —"), "isHeader": true })
+        pointLayerCombo.currentIndex = 0
+        appSettings.pointLayerName = ""
+        return
+    }
+
+    // Layers exist — add "Active Layer" as first selectable option
+    pointLayerPickerModel.append({ "name": qsTr("Active Layer"), "isHeader": false })
+
+    // Append normal layers
+    for (var i = 0; i < normalLayers.length; i++)
+        pointLayerPickerModel.append({ "name": normalLayers[i].name, "isHeader": false })
+
+    // Append private group header + private layers (if any)
+    if (privateLayers.length > 0) {
+        pointLayerPickerModel.append({ "name": qsTr("— Private Layers —"), "isHeader": true })
+        for (var j = 0; j < privateLayers.length; j++)
+            pointLayerPickerModel.append({ "name": privateLayers[j].name, "isHeader": false })
+    }
+
+    // Restore saved selection
+    var saved = appSettings.pointLayerName
+    var found = false
+    for (var k = 1; k < pointLayerPickerModel.count; k++) {
+        var item = pointLayerPickerModel.get(k)
+        if (!item.isHeader && item.name === saved) {
+            pointLayerCombo.currentIndex = k
+            found = true
+            break
+        }
+    }
+    if (!found) {
+        pointLayerCombo.currentIndex = 0
+        appSettings.pointLayerName = ""
+    }
+}
+
+
 Component.onCompleted: {
-    iface.addItemToPluginsToolbar(digitizeButton)
+    iface.addItemToPluginsToolbar(mainPluginButton)
     igukGridsFilter2.locatorBridge.registerQFieldLocatorFilter(igukGridsFilter2);
     canvasMenu.addItem(navButton)
     canvasMenu.addItem(addPointButton)
     canvasMenu.addItem(convertButton)
     canvasMenu.addItem(pasteButton)
-    }
+    // Restore saved settings into UI
+    mapsUrlOption      = appSettings.mapsUrlOption
+    font_Size.text     = appSettings.fontSize
+    zoom.text          = appSettings.zoomLevel
+    decimalsm.text     = appSettings.decimalsM
+    decimalsd.text     = appSettings.decimalsD
+    showIG.checked     = appSettings.showIG
+    showUK.checked     = appSettings.showUK
+    showDegrees.checked    = appSettings.showDegrees
+    showDM.checked         = appSettings.showDM
+    showDMS.checked        = appSettings.showDMS
+    showCustom1.checked    = appSettings.showCustom1
+    showCustom2.checked    = appSettings.showCustom2
+    showCrosshair.checked  = appSettings.showCrosshair
+    showDMSboxes.checked   = appSettings.showDMSboxes
+    showCustomisation.checked = appSettings.showCustomisation
+}
 
  Component.onDestruction: { 
     igukGridsFilter2.locatorBridge.deregisterQFieldLocatorFilter(igukGridsFilter2);
     }   
 
     // --- Refactored Functions ---
+
+    // Returns true if the EPSG code in epsgText refers to a geographic CRS (degrees),
+    // false if projected (metres). Falls back to false on any error.
+    function crsIsGeographic(epsgText) {
+        try {
+            return CoordinateReferenceSystemUtils.fromDescription("EPSG:" + parseInt(epsgText)).isGeographic
+        } catch(e) { return false }
+    }
 
     function copyToClipboard(textToCopy) {
         let textEdit = Qt.createQmlObject('import QtQuick; TextEdit { }', plugin);
@@ -75,57 +194,108 @@ Component.onCompleted: {
         mainWindow.displayToast("Copied: " + textToCopy);
     }
 
-    function addPoint(pointX, pointY, crsEpsg) {
-        let layerName = 'Points'
-        let layer = qgisProject.mapLayersByName(layerName)[0]
+    // Builds the external map URL for a WGS84 destination (lat/lon).
+    // Option 4 (OSRM routing) also resolves a GPS or screen-centre origin.
+    function buildMapsUrl(lat, lon) {
+        if (mapsUrlOption === 1)
+            return "https://www.google.com/maps/search/?api=1&query=" + lat + "," + lon;
+        if (mapsUrlOption === 2)
+            return "https://www.google.com/maps/dir/?api=1&destination=" + lat + "%2C" + lon + "&travelmode=driving";
+        if (mapsUrlOption === 3)
+            return "https://www.openstreetmap.org/#map=15/" + lat + "/" + lon;
+        // option 4 — OSRM routing, needs an origin
+        var gpsLat, gpsLon;
+        if (positionSource.active && positionSource.positionInformation.latitudeValid && positionSource.positionInformation.longitudeValid) {
+            gpsLat = positionSource.positionInformation.latitude;
+            gpsLon = positionSource.positionInformation.longitude;
+            mainWindow.displayToast("Routing from GPS position");
+        } else {
+            var cp = GeometryUtils.reprojectPoint(
+                canvas.center, canvasCrs,
+                CoordinateReferenceSystemUtils.fromDescription("EPSG:4326"));
+            gpsLat = cp.y;
+            gpsLon = cp.x;
+            mainWindow.displayToast("No GPS — routing from screen centre");
+        }
+        return "https://routing.openstreetmap.de/?z=10&center=" + gpsLat + "%2C" + gpsLon
+             + "&loc=" + gpsLat + "%2C" + gpsLon
+             + "&loc=" + lat + "%2C" + lon
+             + "&hl=en&alt=0&srv=0";
+    }
+
+    // Shared entry point for all "add point" actions.
+    // geometry: already-built QgsGeometry in canvas CRS
+    // openForm:  true  → open feature attribute form (button / locator)
+    //            false → commit silently (paste)
+    function addPointToActiveLayer(geometry, openForm) {
+        var layer = null
+        var savedName = appSettings.pointLayerName
+        if (savedName !== "") {
+            layer = qgisProject.mapLayersByName(savedName)[0] || null
+            if (!layer) {
+                mainWindow.displayToast(qsTr("Saved layer '%1' not found — using active layer").arg(savedName))
+                appSettings.pointLayerName = ""
+                pointLayerCombo.currentIndex = 0
+            }
+        }
         if (!layer) {
-            mainWindow.displayToast(qsTr("Layer '%1' not found.").arg(layerName))
-            return
+            dashBoard.ensureEditableLayerSelected()
+            if (!dashBoard.activeLayer) {
+                mainWindow.displayToast("No active layer selected")
+                return
+            }
+            if (dashBoard.activeLayer.geometryType() !== Qgis.GeometryType.Point) {
+                mainWindow.displayToast(qsTr("Active vector layer must be a point geometry"))
+                return
+            }
+            layer = dashBoard.activeLayer
         }
-        addFeatureToLayer(layer, pointX, pointY, crsEpsg);
+        var feature = FeatureUtils.createFeature(layer, geometry)
+        if (openForm) {
+            dashBoard.activeLayer = layer
+            overlayFeatureFormDrawer.featureModel.feature = feature
+            overlayFeatureFormDrawer.state = "Add"
+            overlayFeatureFormDrawer.featureModel.resetAttributes(true)
+            overlayFeatureFormDrawer.open()
+        } else {
+            layer.startEditing()
+            if (LayerUtils.addFeature(layer, feature)) {
+                layer.commitChanges()
+                mainWindow.displayToast(qsTr("Point added to '%1'").arg(layer.name))
+            } else {
+                layer.rollBack()
+                mainWindow.displayToast("Failed to add point")
+            }
+        }
     }
 
-    function addFeatureToLayer(layer, pointX, pointY, crsEpsg) {
-        // Reproject to canvas CRS if needed
-        var transformedPoint;
-        if (crsEpsg !== canvasEPSG) {
-            var sourceCrs = CoordinateReferenceSystemUtils.fromDescription("EPSG:" + crsEpsg);
-            var targetCrs = CoordinateReferenceSystemUtils.fromDescription("EPSG:" + canvasEPSG);
-            transformedPoint = GeometryUtils.reprojectPoint(
+    // Called by the paste handler — reprojects to canvas CRS then adds silently.
+    function addPoint(pointX, pointY, crsEpsg) {
+        var pt = (crsEpsg !== canvasEPSG)
+            ? GeometryUtils.reprojectPoint(
                 GeometryUtils.point(pointX, pointY),
-                sourceCrs,
-                targetCrs
-            );
-        } else {
-            transformedPoint = GeometryUtils.point(pointX, pointY);
-        }
-
-        // Create the geometry
-        var geometry = GeometryUtils.createGeometryFromWkt(`POINT(${transformedPoint.x} ${transformedPoint.y})`);
-
-        // Create a new feature
-        var feature = FeatureUtils.createFeature(layer, geometry);
-
-        // Add feature to layer
-        layer.startEditing();
-        if (LayerUtils.addFeature(layer, feature)) {
-            layer.commitChanges();
-            mainWindow.displayToast("Point added successfully");
-        } else {
-            layer.rollBack();
-            mainWindow.displayToast("Failed to add point");
-        }
+                CoordinateReferenceSystemUtils.fromDescription("EPSG:" + crsEpsg),
+                CoordinateReferenceSystemUtils.fromDescription("EPSG:" + canvasEPSG))
+            : GeometryUtils.point(pointX, pointY);
+        addPointToActiveLayer(
+            GeometryUtils.createGeometryFromWkt(`POINT(${pt.x} ${pt.y})`), false);
     }
 
+    // Zooms the map canvas to a point, creating a square extent around it.
+    // The half-width of that square is controlled by the Zoom setting (1-10):
+    //   offset = exp(zoomLevel × 1.8)  → metres for projected CRS
+    // For geographic CRS the offset is converted from metres to degrees
+    // using the approximation 1° ≈ 111 000 m.
     function zoomToPoint(pointX, pointY, crsEpsg) {
         var sourceCrs = CoordinateReferenceSystemUtils.fromDescription("EPSG:" + crsEpsg);
         var canvasCrsObj = CoordinateReferenceSystemUtils.fromDescription("EPSG:" + canvasEPSG);
         var transformedPoint = GeometryUtils.reprojectPoint(GeometryUtils.point(pointX, pointY), sourceCrs, canvasCrsObj);
 
+        // Exponential scale: zoom=1 → ~6 m half-width, zoom=10 → ~66 km half-width
         var offset = Math.exp(parseFloat(zoom.text) * 1.8);
         if (offset > 1000000) { offset = 1000000; }
         if (offset < 1) { offset = 1; }
-        if (canvasCrs.isGeographic) { offset = offset / 111000; }
+        if (canvasCrs.isGeographic) { offset = offset / 111000; } // metres → degrees
 
         var xMin = transformedPoint.x - offset;
         var xMax = transformedPoint.x + offset;
@@ -279,47 +449,23 @@ Dialog {
 
 
 
-
-
-
-
 MenuItem{ 
     id: addPointButton
-    text: qsTr("Add Point at touch point")
+    text: qsTr("Add point")
     icon.source: 'plugin_stuff/new.svg'
     enabled: true
     height: 48
     leftPadding: 10
     font: Theme.defaultFont
-    onClicked:   {    // Ensure an 'Points' layer is selected
-        if (!dashBoard.activeLayer || dashBoard.activeLayer.name != 'Points') {
-            let layerName = 'Points'
-            let layer = qgisProject.mapLayersByName(layerName)[0]
-            if (layer) {
-                dashBoard.activeLayer = layer
-                dashBoard.ensureEditableLayerSelected()
-                mainWindow.displayToast(qsTr("Layer '%1' set as active").arg(layerName))
-            }
-        }
-      
-       // Create the geometry 
-      var reprojectedGeometry = GeometryUtils.createGeometryFromWkt(`POINT(${canvasMenu.point.x} ${canvasMenu.point.y})`)
-       
-      // Create a new feature
-      var feature = FeatureUtils.createFeature(dashBoard.activeLayer, reprojectedGeometry);
-
-      // Open the form for the new feature
-      overlayFeatureFormDrawer.featureModel.feature = feature;
-      overlayFeatureFormDrawer.state = "Add";
-      overlayFeatureFormDrawer.featureModel.resetAttributes(true)
-      overlayFeatureFormDrawer.open();
-
+    onClicked: {
+        addPointToActiveLayer(
+            GeometryUtils.createGeometryFromWkt(`POINT(${canvasMenu.point.x} ${canvasMenu.point.y})`), true);
     }
 }
 
 MenuItem {
     id: navButton
-    text: qsTr("Google pin of touch point")
+    text: qsTr("Open externally")
     icon.source: 'plugin_stuff/car.svg'
     enabled: true
     height: 48
@@ -327,26 +473,19 @@ MenuItem {
     font: Theme.defaultFont
 
     onClicked: {
-        // Get coordinates from canvas menu position
         var transformedPoint = GeometryUtils.reprojectPoint(
             GeometryUtils.point(canvasMenu.point.x, canvasMenu.point.y),
             mapCanvas.mapSettings.destinationCrs,
             CoordinateReferenceSystemUtils.fromDescription("EPSG:4326")
         )
-        
-        // Create Google Maps URL
-        var url = "https://www.google.com/maps/search/?api=1&query=" +
-                 transformedPoint.y.toFixed(6) + "," + transformedPoint.x.toFixed(6)
-               
-        // Open URL in external browser
-        Qt.openUrlExternally(url)
+        Qt.openUrlExternally(buildMapsUrl(transformedPoint.y, transformedPoint.x))
     }
 
 }
 
 MenuItem {
     id: convertButton
-    text: qsTr("Read/Convert touch point co-ords")
+    text: qsTr("Convert/Show coordinates")
     icon.source: 'plugin_stuff/spir.svg'
     enabled: true
     height: 48
@@ -447,28 +586,8 @@ function triggerResultFromAction(result, actionId) {
       }
 
     } else if (actionId === 2) {
-      // Ensure an 'Points' layer is selected
-        if (!dashBoard.activeLayer || dashBoard.activeLayer.name != 'Points') {
-            let layerName = 'Points'
-            let layer = qgisProject.mapLayersByName(layerName)[0]
-            if (layer) {
-                dashBoard.activeLayer = layer
-                dashBoard.ensureEditableLayerSelected()
-                mainWindow.displayToast(qsTr("Layer '%1' set as active").arg(layerName))
-            }
-        }
-      
-       // Create the geometry 
-      var reprojectedGeometry = GeometryUtils.createGeometryFromWkt(`POINT(${reprojectedPoint.x} ${reprojectedPoint.y})`)
-       
-      // Create a new feature
-      var feature = FeatureUtils.createFeature(dashBoard.activeLayer, reprojectedGeometry);
-
-      // Open the form for the new feature
-      overlayFeatureFormDrawer.featureModel.feature = feature;
-      overlayFeatureFormDrawer.state = "Add";
-      overlayFeatureFormDrawer.featureModel.resetAttributes(true)
-      overlayFeatureFormDrawer.open();
+        addPointToActiveLayer(
+            GeometryUtils.createGeometryFromWkt(`POINT(${reprojectedPoint.x} ${reprojectedPoint.y})`), true);
     }
   } else {
     mainWindow.displayToast("Invalid action or geometry");
@@ -572,13 +691,13 @@ Rectangle {
 }
 
 QfToolButton {
- id: digitizeButton
+ id: mainPluginButton
  bgcolor: Theme.darkGray
  iconSource: 'plugin_stuff/icon2.svg'
- round: true 
- onClicked: { 
-    showCustomisation.checked = customisationvis
-    mainDialog.open() }}
+ round: true
+ onClicked: mainDialog.open()
+ onPressAndHold: settingsDialog.open()
+}
  
 
 
@@ -590,7 +709,7 @@ Dialog {
  modal: true
  font: Theme.defaultFont
  Layout.preferredHeight: 35
- width: 350
+ width: 380
 
 
  x: (mainWindow.width - width) / 2
@@ -646,13 +765,20 @@ Button {
  }
  }
  }
-     CheckBox {
-        id: showCustomisation
-        checked: false
-        onCheckedChanged: {
-        customisation.visible = checked
+     Button {
+        text: "⚙"
+        font.pixelSize: 18
+        Layout.preferredHeight: 32
+        Layout.preferredWidth: 32
+        onClicked: settingsDialog.open()
+        contentItem: Text {
+            text: "⚙"
+            font.pixelSize: 18
+            color: "#000000"
+            horizontalAlignment: Text.AlignHCenter
+            verticalAlignment: Text.AlignVCenter
         }
-    } 
+    }
 }
 Button {
  text: qsTr("Paste from clipboard")
@@ -767,7 +893,7 @@ TextField {
 
 
 Button {
-    text: qsTr("C")
+    text: "⧉"
     id: copyIG  
     font.bold: true
     width: 10
@@ -875,7 +1001,7 @@ ukInputBox.placeholderText  = "UKG"
  }
 }
 Button {
-    text: qsTr("C")
+    text: "⧉"
     id: copyUK  
     //visible: false
     font.bold: true
@@ -892,11 +1018,9 @@ Button {
 } 
  
 // Custom1 Row
-RowLayout { 
+RowLayout {
     id: custom1row
     visible: custom1vis
-
-//custombox1
 
 TextField {
     id: custom1BoxXY //3
@@ -907,7 +1031,7 @@ TextField {
     font.family: "Arial"
     font.bold: true
     font.italic: true
-    placeholderText: "X,Y or Long (E), Lat (N)"
+    placeholderText: crsIsGeographic(custom1CRS.text) ? "Lat, Long" : "X, Y"
     //visible: false
     text: ""
 
@@ -964,7 +1088,7 @@ TextField {
  
  }
  Button {
-    text: qsTr("C")
+    text: "⧉"
     id: custom1copy
     font.bold: true
     width: 35
@@ -983,9 +1107,10 @@ TextField {
 // custom2
 RowLayout {
  id: custom2row
- visible: custom2vis  
+ visible: custom2vis
 
-//second custom box   
+
+
 TextField {
     id: custom2BoxXY
     property bool isProgrammaticUpdate: false
@@ -995,7 +1120,7 @@ TextField {
     font.family: "Arial"
     font.italic: true
     font.bold: true
-    placeholderText: "X,Y or Long (E), Lat (N)"
+    placeholderText: crsIsGeographic(custom2CRS.text) ? "Lat, Long" : "X, Y"
     //visible: false
     text: ""
 
@@ -1050,7 +1175,7 @@ TextField {
   }
 
  Button {
-    text: qsTr("C")
+    text: "⧉"
     id: custom2copy
     font.bold: true
     //visible: false
@@ -1157,7 +1282,7 @@ TextField {
  }
 }
  Button {
-    text: qsTr("C")
+    text: "⧉"
     id: wgs84copy
     font.bold: true
     //visible: true
@@ -1201,7 +1326,7 @@ TextField {
   
  }}
  Button {
-    text: qsTr("C")
+    text: "⧉"
     id: wgsdm84copy
     font.bold: true
     width: 35
@@ -1245,7 +1370,7 @@ TextField {
 
  }}
  Button {
-    text: qsTr("C")
+    text: "⧉"
     id: wgsdms84copy
     font.bold: true
     width: 35
@@ -1564,7 +1689,7 @@ onTextChanged: lonSecClampTimer.restart()
 
  // Update Button
  Button {
- text: "←" // update from this row should get rid of this in future.....
+ text: "↺" // update from this row should get rid of this in future.....
      font.bold: true
     visible: true
     width: 35
@@ -1734,11 +1859,7 @@ Button {
     var lon = parseFloat(parts[1]); // Ensure proper order
     var lat = parseFloat(parts[0]);
 
-    var MapsUrl = "https://www.google.com/maps/search/?api=1&query="+ lat + "," + lon // pin
-    //var MapsUrl = "https://www.google.com/maps/dir/?api=1&destination=" + lat + "%2C" + lon  + "&travelmode=driving"; // navigate
-    //var MapsUrl = "https://www.openstreetmap.org/#map=15/"+ lat +"/"+lon; // OSM
-   
-    Qt.openUrlExternally(MapsUrl);
+    Qt.openUrlExternally(buildMapsUrl(lat, lon));
      mainDialog.close()
 }
 
@@ -1763,263 +1884,172 @@ Button {
  
 
  
-Frame{
-id: customisation
- Layout.fillWidth: true
-visible: false
-
-
-Column{
-
-    anchors.fill: parent
-    anchors.margins: 1
-
-GridLayout{  //grid 1
-    columns: 4
-    rows: 2
-    columnSpacing: 0
-    rowSpacing: 0
-    
-     Layout.fillWidth: true 
-
-
-Label{
- id:font_Size1
- font.pixelSize: 10
- font.family: "Arial"
- font.italic: true
- text : "Font Size:"
- Layout.preferredHeight: 10 
- }
-
- TextField{
- id:font_Size
- font.pixelSize: 10
- font.family: "Arial"
- font.italic: true
- text : fsize
- Layout.preferredWidth: 40 
- Layout.preferredHeight: 20 
- validator: IntValidator {
-        bottom: 5
-        top: 25
-    }
- }
-
- Label{
- id:zoomlabel
- font.pixelSize: 10
- font.family: "Arial"
- font.italic: true
- text : "      Zoom:"
- Layout.preferredHeight: 10 
- }
-
-  TextField{
- id:zoom
- font.pixelSize: 10
- font.family: "Arial"
- font.italic: true
- text : zoomV
- Layout.preferredWidth: 40 
- Layout.preferredHeight: 20 
- validator: IntValidator {
-        bottom: 1
-        top: 10
-    } 
- } 
-
-Label{
- id:decimals1
- font.pixelSize: 10
- font.family: "Arial"
- font.italic: true
- text : "Decimals (m):"
- Layout.preferredHeight: 10 
- }
-
-  TextField{
- id:decimalsm
- font.pixelSize: 10
- font.family: "Arial"
- font.italic: true
- text : decm
- Layout.preferredWidth: 40 
- Layout.preferredHeight: 20
- validator: IntValidator {
-      bottom: 0
-      top: 10
-  }  
- }
- 
- Label{
- id:decimals2
- font.pixelSize: 10
- font.family: "Arial"
- font.italic: true
- text : "Decimals (deg):"
- Layout.preferredHeight: 10 
- }
- 
- TextField{
- id:decimalsd
- font.pixelSize: 10
- font.family: "Arial"
- font.italic: true
- text : decd
- Layout.preferredWidth: 40 
- Layout.preferredHeight: 20 
- validator: IntValidator {
-        bottom: 0
-        top: 10
-    } 
- } 
-} //end of grid 1
-
-GridLayout{  // grid 2
-    columns: 3
-    rows: 4
-    columnSpacing: 0
-    rowSpacing: 0
-    Layout.fillWidth: true
-
-//row 1
-    CheckBox {
-        id: showIG
-        text: "Irish Grid"
-        font.pixelSize: 10
-        checked: true
-        onCheckedChanged: {
-            igridrow.visible= checked
-        }
-    }
-
-
-                        CheckBox {
-        id: showDegrees
-        text: "Degrees"
-        font.pixelSize: 10
-        checked: false
-        onCheckedChanged: {
-            wgsdegreesrow.visible = checked   
-        }
-    }
-     CheckBox {
-        id: showDMS
-        text: "D M S.ss"
-        font.pixelSize: 10
-        checked: false
-        onCheckedChanged: {
-            dmsrow.visible = checked
-        }
-    }
-
- 
-//row 2
-
-
-    CheckBox {
-        id: showUK
-        text: "UK Grid"
-        font.pixelSize: 10
-        checked: false
-        onCheckedChanged: {
-            ukgridrow.visible = checked
-        }
-    }
-       //     CheckBox {
-       // id: showCustom2
-       // text: "Custom 2"
-       // font.pixelSize: 10
-       // checked: false
-       // onCheckedChanged: {
-      //      custom2row.visible = checked         
-       // }
-    //}
-                CheckBox {
-        id: showDM
-        text: "D M.mm"
-        font.pixelSize: 10
-        checked: true
-        onCheckedChanged: {
-            dmrow.visible = checked            
-        }
-    }
-        CheckBox {
-        id: showCustom1
-        text: "Custom 1"
-        font.pixelSize: 10
-        checked: false
-        onCheckedChanged: {
-            custom1row.visible = checked
-        }
-    }
-
-
-//row 3
- 
-  
-     Button {
- text: qsTr("Reset")
- font.pixelSize: 10 
- Layout.preferredHeight: 35 
- onClicked: {
- custom1CRS.text = canvasEPSG
- custom2CRS.text = "4326"
- font_Size.text = fsize
- decimalsm.text = decm
- decimalsd.text = decd
- zoom.text = zoomV
-
-    
-    showIG.checked = igvis
-    showUK.checked = ukgvis
-    showCustom1.checked = custom1vis 
-    //showCustom2.checked = custom2vis
-    showDegrees.checked = wgs84vis    
-    showDM.checked = dmvis
-    showDMS.checked = dmsvis
-    showDMSboxes.checked = dmsBoxesvis
-    showCustomisation.checked = customisationvis
-    showCrosshair.checked = crosshairvis
-
- }
- }
-
-
-    CheckBox {
-        id: showCrosshair
-        text: "Crosshair"
-        font.pixelSize: 10
-        checked: true
-        onCheckedChanged: {
-            crosshair.visible = checked
-        }
-    }
-                CheckBox {
-        id: showDMSboxes
-        text: "DMSBoxes"
-        font.pixelSize: 10
-        checked: true
-        onCheckedChanged: {
-            latlongboxesDMS.visible = checked   
-        }
-    }
-
-    //row 4 filetimedate
-
-Label{ text: filetimedate 
-font.pixelSize: 9 
-font.family: "Arial" 
-font.italic: true 
-horizontalAlignment: Text.AlignRight 
-verticalAlignment: Text.AlignBottom 
-}
- } // end of grid2
- } // end of column 
-  
-} // end of customisation 
 } // end of big column
+
+Dialog {
+    id: settingsDialog
+    parent: mainWindow.contentItem
+    modal: true
+    title: qsTr("Settings")
+    width: 380
+    anchors.centerIn: parent
+    onOpened: populatePointLayerPicker()
+
+Column {
+    width: parent.width
+    spacing: 4
+
+    // --- Add points to (top) ---
+    Label { text: qsTr("    Add new points to:"); font.pixelSize: 12; font.family: "Arial"; font.italic: true }
+    ComboBox {
+        id: pointLayerCombo
+        width: parent.width
+        font.pixelSize: 12
+        model: pointLayerPickerModel
+        textRole: "name"
+        onActivated: {
+            var item = pointLayerPickerModel.get(currentIndex)
+            if (item.isHeader) {
+                currentIndex = currentIndex > 0 ? currentIndex - 1 : 0
+                return
+            }
+            appSettings.pointLayerName = (currentIndex === 0) ? "" : item.name
+        }
+        delegate: ItemDelegate {
+            width: pointLayerCombo.width
+            enabled: !model.isHeader
+            contentItem: Text {
+                text: model.name
+                font.pixelSize: 12
+                font.italic: model.isHeader
+                color: model.isHeader ? "#888888" : (highlighted ? "#ffffff" : "#000000")
+                verticalAlignment: Text.AlignVCenter
+                leftPadding: model.isHeader ? 4 : 8
+            }
+            highlighted: pointLayerCombo.highlightedIndex === index
+        }
+    }
+
+    // --- Frame: display checkboxes ---
+    GroupBox {
+        title: qsTr("Display")
+        width: parent.width
+        GridLayout {
+            anchors.left: parent.left
+            anchors.right: parent.right
+            columns: 3
+            columnSpacing: 0
+            rowSpacing: 0
+            CheckBox { id: showIG;       text: "Irish Grid"; font.pixelSize: 10; checked: true;  onCheckedChanged: { igridrow.visible = checked;      appSettings.showIG = checked } }
+            CheckBox { id: showDegrees;  text: "Degrees";    font.pixelSize: 10; checked: false; onCheckedChanged: { wgsdegreesrow.visible = checked;  appSettings.showDegrees = checked } }
+            CheckBox { id: showDMS;      text: "D M S.ss";   font.pixelSize: 10; checked: false; onCheckedChanged: { dmsrow.visible = checked;         appSettings.showDMS = checked } }
+            CheckBox { id: showUK;       text: "UK Grid";    font.pixelSize: 10; checked: false; onCheckedChanged: { ukgridrow.visible = checked;      appSettings.showUK = checked } }
+            CheckBox { id: showDM;       text: "D M.mm";     font.pixelSize: 10; checked: true;  onCheckedChanged: { dmrow.visible = checked;          appSettings.showDM = checked } }
+            CheckBox { id: showCustom1;  text: "Custom 1";   font.pixelSize: 10; checked: false; onCheckedChanged: { custom1row.visible = checked;     appSettings.showCustom1 = checked } }
+            CheckBox { id: showCustom2;  text: "Custom 2";   font.pixelSize: 10; checked: false; onCheckedChanged: { custom2row.visible = checked;     appSettings.showCustom2 = checked } }
+            CheckBox { id: showDMSboxes;  text: "DMS Boxes"; font.pixelSize: 10; checked: true;  onCheckedChanged: { latlongboxesDMS.visible = checked; appSettings.showDMSboxes = checked } }
+            CheckBox { id: showCrosshair; text: "Crosshair"; font.pixelSize: 10; checked: true; onCheckedChanged: { crosshair.visible = checked; appSettings.showCrosshair = checked } }
+            
+        }
+    }
+
+    // --- Frame: external map ---
+    ButtonGroup { id: mapsUrlGroup }
+    GroupBox {
+        title: qsTr("External map")
+        width: parent.width
+        GridLayout {
+            anchors.left: parent.left
+            anchors.right: parent.right
+            columns: 2
+            columnSpacing: 0
+            rowSpacing: 0
+            RadioButton { text: "GMaps pin";  font.pixelSize: 10; ButtonGroup.group: mapsUrlGroup; checked: mapsUrlOption === 1; onCheckedChanged: if (checked) { mapsUrlOption = 1; appSettings.mapsUrlOption = 1 } }
+            RadioButton { text: "GMaps nav";  font.pixelSize: 10; ButtonGroup.group: mapsUrlGroup; checked: mapsUrlOption === 2; onCheckedChanged: if (checked) { mapsUrlOption = 2; appSettings.mapsUrlOption = 2 } }
+            RadioButton { text: "OSM";        font.pixelSize: 10; ButtonGroup.group: mapsUrlGroup; checked: mapsUrlOption === 3; onCheckedChanged: if (checked) { mapsUrlOption = 3; appSettings.mapsUrlOption = 3 } }
+            RadioButton { text: "OSRM route"; font.pixelSize: 10; ButtonGroup.group: mapsUrlGroup; checked: mapsUrlOption === 4; onCheckedChanged: if (checked) { mapsUrlOption = 4; appSettings.mapsUrlOption = 4 } }
+        }
+    }
+
+    // --- Frame: numeric/format settings ---
+    GroupBox {
+        title: qsTr("Format")
+        width: parent.width
+        GridLayout {
+            anchors.left: parent.left
+            anchors.right: parent.right
+            columns: 4
+            columnSpacing: 0
+            rowSpacing: 0
+            Label { font.pixelSize: 10; font.family: "Arial"; font.italic: true; text: "Font Size:" }
+            TextField {
+                id: font_Size
+                font.pixelSize: 10; font.family: "Arial"; font.italic: true
+                text: fsize; Layout.preferredWidth: 40; Layout.preferredHeight: 20
+                validator: IntValidator { bottom: 5; top: 25 }
+                onTextChanged: appSettings.fontSize = text
+            }
+            Label { font.pixelSize: 10; font.family: "Arial"; font.italic: true; text: "Zoom:" }
+            TextField {
+                id: zoom
+                font.pixelSize: 10; font.family: "Arial"; font.italic: true
+                text: zoomV; Layout.preferredWidth: 40; Layout.preferredHeight: 20
+                validator: IntValidator { bottom: 1; top: 10 }
+                onTextChanged: appSettings.zoomLevel = text
+            }
+            Label { font.pixelSize: 10; font.family: "Arial"; font.italic: true; text: "Decimals (m):" }
+            TextField {
+                id: decimalsm
+                font.pixelSize: 10; font.family: "Arial"; font.italic: true
+                text: decm; Layout.preferredWidth: 40; Layout.preferredHeight: 20
+                validator: IntValidator { bottom: 0; top: 10 }
+                onTextChanged: appSettings.decimalsM = text
+            }
+            Label { font.pixelSize: 10; font.family: "Arial"; font.italic: true; text: "Decimals (deg):" }
+            TextField {
+                id: decimalsd
+                font.pixelSize: 10; font.family: "Arial"; font.italic: true
+                text: decd; Layout.preferredWidth: 40; Layout.preferredHeight: 20
+                validator: IntValidator { bottom: 0; top: 10 }
+                onTextChanged: appSettings.decimalsD = text
+            }
+        }
+    }
+
+    // --- Reset button (bottom) ---
+    Button {
+        text: qsTr("Reset")
+        width: parent.width
+        font.pixelSize: 10
+        implicitHeight: 35
+        onClicked: {
+            custom1CRS.text = canvasEPSG
+            custom2CRS.text = "4326"
+            font_Size.text      = fsize;    appSettings.fontSize  = fsize
+            decimalsm.text      = decm;     appSettings.decimalsM = decm
+            decimalsd.text      = decd;     appSettings.decimalsD = decd
+            zoom.text           = zoomV;    appSettings.zoomLevel = zoomV
+            showIG.checked      = igvis;    showUK.checked        = ukgvis
+            showCustom1.checked = custom1vis; showCustom2.checked = custom2vis
+            showDegrees.checked = wgs84vis
+            showDM.checked      = dmvis;    showDMS.checked       = dmsvis
+            showDMSboxes.checked = dmsBoxesvis; showCrosshair.checked = crosshairvis
+            mapsUrlOption = 3;              appSettings.mapsUrlOption = 3
+            appSettings.pointLayerName = ""; pointLayerCombo.currentIndex = 0
+        }
+    }
+
+    // --- Version ---
+    Label {
+        text: filetimedate
+        width: parent.width
+        font.pixelSize: 9
+        font.family: "Arial"
+        font.italic: true
+        horizontalAlignment: Text.AlignRight
+    }
+} // end of column
+} // end of settingsDialog
 Dialog {
     id: bigDialog
     font.pixelSize: 35
@@ -2425,71 +2455,26 @@ function validateInput(textBox) {
     }
 }
 
-function getIGFromXY(x, y) {
- // Check if x or y is greater than 0
- if (x >= 0 && y >= 0 && x < 1000000 && y <1000000) {
- // Step 1: Determine the grid letter
- var firstIndex = Math.floor(x / 100000); // Get the index for the first dimension
- var secondIndex = Math.floor(y / 100000); // Get the index for the second dimension
-
- // Find the letter corresponding to the indices
- var letter = Object.keys(igletterMatrix).find(function(key) {
- return igletterMatrix[key].first === firstIndex && igletterMatrix[key].second === secondIndex;
- });
-
- // Step 2: Calculate the 5-digit numbers
- var X5 = Math.round(x % 100000); // Remainder of x divided by 100000
- var Y5 = Math.round(y % 100000); // Remainder of y divided by 100000
-
- // Step 3: Format the result as "L XXXXX YYYYY"
- if (letter) {
- return letter + ' ' + String(X5).padStart(5, '0') + ' ' + String(Y5).padStart(5, '0');
- } else {
- return ""; // Return an empty string if no letter is found
- }
- } else {
- // Return an empty string if the condition fails
- return "";
- }
+// Converts a projected (x, y) coordinate to a national grid reference string
+// (e.g. "H 54321 89797" for Irish Grid, "NS 45140 72887" for UK Grid).
+// Works for both grids — pass the appropriate maxCoord and letterMatrix:
+//   Irish Grid:  maxCoord = 1 000 000,  letterMatrix = igletterMatrix
+//   UK Grid:     maxCoord = 10 000 000, letterMatrix = ukletterMatrix
+// The algorithm divides x/y into 100 km tiles, looks up the tile letter(s),
+// then takes the remainder within the tile as a zero-padded 5-digit number.
+function getGridRefFromXY(x, y, maxCoord, letterMatrix) {
+    if (x < 0 || y < 0 || x >= maxCoord || y >= maxCoord) return ""
+    var firstIndex  = Math.floor(x / 100000)
+    var secondIndex = Math.floor(y / 100000)
+    var letters = Object.keys(letterMatrix).find(function(key) {
+        return letterMatrix[key].first === firstIndex && letterMatrix[key].second === secondIndex
+    })
+    if (!letters) return ""
+    return letters + ' ' + String(Math.round(x % 100000)).padStart(5, '0') + ' ' + String(Math.round(y % 100000)).padStart(5, '0')
 }
 
-function getUKFromXY(x, y) {
- // Check if x and y are within the valid range
- if (x >= 0 && y >= 0 && x < 10000000 && y < 10000000) {
- // Step 1: Determine the grid letters
- var firstIndex = Math.floor(x / 100000); // Get the index for the first dimension
- var secondIndex = Math.floor(y / 100000); // Get the index for the second dimension
-
- // Find the 2-letter grid reference corresponding to the indices
- var gridLetters = Object.keys(ukletterMatrix).find(function(key) {
- return ukletterMatrix[key].first === firstIndex && ukletterMatrix[key].second === secondIndex;
- });
-
- // Step 2: Calculate the 5-digit numbers
- var X5 = Math.round(x % 100000); // Remainder of x divided by 100000
- var Y5 = Math.round(y % 100000); // Remainder of y divided by 100000
-
- // Step 3: Format the result as "LL XXXXX YYYYY"
- if (gridLetters) {
- return gridLetters + ' ' + String(X5).padStart(5, '0') + ' ' + String(Y5).padStart(5, '0');
- } else {
- return ""; // Return an empty string if no grid letters are found
- }
- } else {
- // Return an empty string if the condition fails
- return "";
- }
-}
-
-// Convert DDM to decimal degrees
- function ddmToDecimal(coord) {
- if (!coord) return ''
- var parts = coord.split(/°|\s+/).filter(Boolean)
- var degrees = parseInt(parts[0], 10)
- var minutes = parts.length > 1 ? parseFloat(parts[1].replace("'", "")) : 0
- var decimal = degrees + (minutes / 60)
- return decimal.toFixed(6)
- }
+function getIGFromXY(x, y) { return getGridRefFromXY(x, y, 1000000,  igletterMatrix) }
+function getUKFromXY(x, y) { return getGridRefFromXY(x, y, 10000000, ukletterMatrix) }
 
 function decimalToDDM(decimal) {
  if (typeof decimal !== 'number' || isNaN(decimal)) return ''
@@ -2529,22 +2514,39 @@ function degtoSeconds(decimal) {
  return ((minutes - Math.floor(minutes)) * 60).toFixed(2)
 }
 
-// should loop through and update coordinates in all OTHER textfields
+// Reprojects (x, y) from sourceEPSG and updates every coordinate display box
+// EXCEPT the one that triggered the call (to avoid infinite update loops).
+// inputDialog values:
+//   1 = Irish Grid input      (igInputBox)
+//   2 = UK Grid input         (ukInputBox)
+//   3 = Custom 1 input        (custom1BoxXY)
+//   4 = Custom 2 input        (custom2BoxXY)
+//   5 = WGS84 decimal input   (wgs84Box)
+//   6 = WGS84 DDM/DMS input   (wgs84DMBox / DMS boxes)
+//   undefined = external call — update everything
+// isProgrammaticUpdate is set before each text assignment to suppress the
+// box's own onTextChanged handler from firing a second updateCoordinates call.
  function updateCoordinates(x, y, sourceEPSG, targetEPSG1, targetEPSG2, inputDialog) {
- var sourceCrs = CoordinateReferenceSystemUtils.fromDescription("EPSG:" + parseFloat(sourceEPSG))
- var targetCrs1 = CoordinateReferenceSystemUtils.fromDescription("EPSG:" + parseFloat(targetEPSG1))
- var targetCrs2 = CoordinateReferenceSystemUtils.fromDescription("EPSG:" + parseFloat(targetEPSG2))
+ var sourceCrs = CoordinateReferenceSystemUtils.fromDescription("EPSG:" + parseInt(sourceEPSG))
+ var targetCrs1 = CoordinateReferenceSystemUtils.fromDescription("EPSG:" + parseInt(targetEPSG1))
+ var targetCrs2 = CoordinateReferenceSystemUtils.fromDescription("EPSG:" + parseInt(targetEPSG2))
 
  if (inputDialog !== 1) { // Update IG
  var igPoint = GeometryUtils.reprojectPoint(GeometryUtils.point(x, y), sourceCrs, CoordinateReferenceSystemUtils.fromDescription("EPSG:29903"))
+ var igRef = getIGFromXY(igPoint.x, igPoint.y)
  igInputBox.isProgrammaticUpdate = true
- igInputBox.text = getIGFromXY(igPoint.x, igPoint.y)
+ igInputBox.text = igRef
+ // Hide the row when the point is outside Irish Grid coverage (result is "")
+ igridrow.visible = showIG.checked && igRef !== ""
  }
 
  if (inputDialog !== 2) { // Update UK
  var ukPoint = GeometryUtils.reprojectPoint(GeometryUtils.point(x, y), sourceCrs, CoordinateReferenceSystemUtils.fromDescription("EPSG:27700"))
+ var ukRef = getUKFromXY(ukPoint.x, ukPoint.y)
  ukInputBox.isProgrammaticUpdate = true
- ukInputBox.text = getUKFromXY(ukPoint.x, ukPoint.y)
+ ukInputBox.text = ukRef
+ // Hide the row when the point is outside UK Grid coverage (result is "")
+ ukgridrow.visible = showUK.checked && ukRef !== ""
  }
 
  if (inputDialog !== 3) { // Update Custom1
@@ -2583,25 +2585,31 @@ function degtoSeconds(decimal) {
  } 
  }
 
-function justIG(source,crs){ 
+// Quick-format helpers used by bigDialog to show GPS / screen-centre positions.
+// Each reprojects a {x, y} source point and returns a formatted string.
+// source.x/y are in the CRS given by `crs` (EPSG integer).
+
+// Returns an Irish Grid reference string, or "" if out of range.
+function justIG(source,crs){
 var point = GeometryUtils.reprojectPoint(GeometryUtils.point(source.x, source.y),  CoordinateReferenceSystemUtils.fromDescription("EPSG:"+crs) , CoordinateReferenceSystemUtils.fromDescription("EPSG:29903"))
  return getIGFromXY(point.x, point.y)
  }
 
-
-function justUKG(source,crs){ 
+// Returns a UK National Grid reference string, or "" if out of range.
+function justUKG(source,crs){
 var point = GeometryUtils.reprojectPoint(GeometryUtils.point(source.x, source.y),  CoordinateReferenceSystemUtils.fromDescription("EPSG:"+crs) , CoordinateReferenceSystemUtils.fromDescription("EPSG:27700"))
  return getUKFromXY(point.x, point.y)
  }
 
-
-function justLL(source,crs){ 
+// Returns a WGS84 "lat, lon" string rounded to the current decimals setting.
+function justLL(source,crs){
 var point = GeometryUtils.reprojectPoint(GeometryUtils.point(source.x, source.y),  CoordinateReferenceSystemUtils.fromDescription("EPSG:"+crs) , CoordinateReferenceSystemUtils.fromDescription("EPSG:4326"))
-return ( point.y.toFixed(decimalsd.text)+", "+ point.x.toFixed(decimalsd.text) )
-
+return ( point.y.toFixed(decimalsd.text)+", "+ point.x.toFixed(decimalsd.text) )  // y=lat, x=lon
  }
 
  
+ // Formats a reprojected point as "x, y" (easting/lon first, northing/lat second).
+ // Uses the metres decimal setting for projected CRS, degrees setting for geographic.
  function formatPoint(point, crs) {
  if (!crs.isGeographic) {
  return parseFloat(point.x.toFixed(decimalsm.text)) + ", " + parseFloat(point.y.toFixed(decimalsm.text))
@@ -2611,18 +2619,13 @@ return ( point.y.toFixed(decimalsd.text)+", "+ point.x.toFixed(decimalsd.text) )
  }
 
 
+ // Returns the whole-minutes component of a decimal degree value (0–59).
+ // Used to populate the DMS minute input boxes.
  function decimalToMinutes(decimal) {
-
 if (typeof decimal !== 'number' || isNaN(decimal)) return ''
-
-    var sign = decimal < 0 ? '-' : '';
     var absDecimal = Math.abs(decimal);
-
     var degrees = Math.floor(absDecimal);
-    var minutes = Math.floor((absDecimal - degrees) * 60);
-    var seconds = ((absDecimal - degrees - minutes / 60) * 3600).toFixed(2);
-
-    return minutes;
+    return Math.floor((absDecimal - degrees) * 60);
 }
 
  function decimalToDMss(decimal) {
