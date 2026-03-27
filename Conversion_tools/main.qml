@@ -26,7 +26,7 @@ Item {
 
 
 //changable stuff 
-property var filetimedate : "27.3.26..22" // version date
+property var filetimedate : "27.3.26..23" // version date
 property var mapsUrlOption: 3 // Default external map: 1=GMaps pin, 2=GMaps nav, 3=OSM, 4=OSRM route
 
 //default values
@@ -2452,11 +2452,9 @@ Dialog {
                     Label {
                         id: gpsIG
                         text: (positionSource.active && positionSource.positionInformation.latitudeValid && positionSource.positionInformation.longitudeValid)
-        ? ((showIG.checked
-            ? justIG(positionSource.projectedPosition, canvasEPSG)
-            : justUKG(positionSource.projectedPosition, canvasEPSG)))
-        : "No GPS"
-                        font.pixelSize: 35
+                            ? bestGridRef(positionSource.projectedPosition, canvasEPSG)
+                            : "No GPS"
+                        font.pixelSize: gpsIG.text.indexOf("°") >= 0 ? 24 : 35
                         wrapMode: Text.Wrap
                         horizontalAlignment: Text.AlignHCenter
                         anchors.horizontalCenter: parent.horizontalCenter
@@ -2521,8 +2519,8 @@ Dialog {
 
                     Label {
                         id: screenIG
-                        text:  showIG.checked ? justIG(canvas.center, canvasEPSG) :justUKG(canvas.center, canvasEPSG)
-                        font.pixelSize: 35
+                        text: bestGridRef(canvas.center, canvasEPSG)
+                        font.pixelSize: screenIG.text.indexOf("°") >= 0 ? 24 : 35
                         wrapMode: Text.Wrap
                         horizontalAlignment: Text.AlignHCenter
                         anchors.horizontalCenter: parent.horizontalCenter
@@ -2958,6 +2956,22 @@ function justLL(source,crs){
 var point = GeometryUtils.reprojectPoint(GeometryUtils.point(source.x, source.y),  CoordinateReferenceSystemUtils.fromDescription("EPSG:"+crs) , CoordinateReferenceSystemUtils.fromDescription("EPSG:4326"))
 return ( point.y.toFixed(decimalsd.text)+", "+ point.x.toFixed(decimalsd.text) )  // y=lat, x=lon
  }
+
+// Returns a WGS84 Degrees + Decimal Minutes string (lat / lon on separate lines).
+function justDDM(source, crs) {
+    var point = GeometryUtils.reprojectPoint(GeometryUtils.point(source.x, source.y),
+        CoordinateReferenceSystemUtils.fromDescription("EPSG:" + crs),
+        CoordinateReferenceSystemUtils.fromDescription("EPSG:4326"))
+    return decimalToDDM(point.y) + "\n" + decimalToDDM(point.x)
+}
+
+// Returns the best available grid reference for display in the BIG dialog:
+// Irish Grid if enabled and in range, then UK Grid if enabled and in range, then DDM.
+function bestGridRef(source, crs) {
+    if (showIG.checked) { var ig = justIG(source, crs); if (ig !== "") return ig }
+    if (showUK.checked) { var uk = justUKG(source, crs); if (uk !== "") return uk }
+    return justDDM(source, crs)
+}
 
  
  // Formats a reprojected point as "x, y" (easting/lon first, northing/lat second).
