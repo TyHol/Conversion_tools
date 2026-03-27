@@ -88,8 +88,8 @@ Below the read-only DMS row are six editable boxes for entering Degrees, Minutes
 
 Two large-text overlay dialogs for easy reading in the field:
 
-- **BIG (tap):** Shows the current GPS position and the screen centre position, each in Irish Grid / UK Grid and Lat/Long. Tap any value to copy it to the clipboard.
-- **BIG (long press):** Shows all the current values from the main dialog text boxes, also copyable by tap.
+- **BIG (tap):** Shows the current GPS position and the screen centre position, each in Irish Grid / UK Grid and Lat/Long. Tap any coordinate value to copy it to the clipboard.
+- **BIG (long press):** Shows all the current values from the main dialog text boxes. Tap any coordinate value to copy it to the clipboard.
 
 [IMAGE: BIG dialog showing GPS and screen centre]
 
