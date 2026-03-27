@@ -24,7 +24,7 @@ A plugin for the [QField](https://qfield.org/) mobile GIS app that converts betw
 
 ## Installation
 
-Copy the `Conversion_tools` folder into your QField plugins directory, then enable the plugin in QField settings.
+To install the plugin, download the plugin from the releases page and follow the plugin installation guide to install the zipped plugin in QField.
 
 ---
 
